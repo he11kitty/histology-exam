@@ -432,7 +432,157 @@ async function loadQuizFileEntry(entry) {
     if (qContainer) qContainer.innerHTML = `<p style="color:#f88">Failed to load quiz ${entry.id}.</p>`;
   }
 }
+/* ---------- Catalog loader + quiz loader (paste before </script> in index.html) ---------- */
+
+async function fetchAndRenderCatalog() {
+  const catalogUrl = '/quizzes/quizzes.json';
+  try {
+    const res = await fetch(catalogUrl);
+    if (!res.ok) {
+      console.warn('Catalog not found at', catalogUrl, 'status', res.status);
+      const container = ensureCatalogContainer();
+      container.innerHTML = '<h3 style="color:#6ee7b7;margin:0 0 8px 0">Available Exams</h3><div style="color:#9aa6b2">No catalog found (quizzes/quizzes.json).</div>';
+      return;
+    }
+    const list = await res.json();
+    renderCatalogFromList(list);
+  } catch (err) {
+    console.error('Failed to fetch catalog:', err);
+    const container = ensureCatalogContainer();
+    container.innerHTML = '<h3 style="color:#6ee7b7;margin:0 0 8px 0">Available Exams</h3><div style="color:#f88">Error loading catalog.</div>';
+  }
+}
+
+function ensureCatalogContainer(){
+  let container = document.getElementById('quiz-catalog');
+  if (container) return container;
+  container = document.createElement('aside');
+  container.id = 'quiz-catalog';
+  container.style = 'width:280px;float:left;margin-right:18px;padding:12px;border-radius:8px;background:rgba(255,255,255,0.02);';
+  container.innerHTML = '<h3 style="color:#6ee7b7;margin:0 0 8px 0">Available Exams</h3>';
+  const mainCard = document.querySelector('.exam-card');
+  if (mainCard && mainCard.parentNode) {
+    mainCard.parentNode.insertBefore(container, mainCard);
+  } else {
+    document.body.insertBefore(container, document.body.firstChild);
+  }
+  return container;
+}
+
+function renderCatalogFromList(list) {
+  const container = ensureCatalogContainer();
+  container.innerHTML = '<h3 style="color:#6ee7b7;margin:0 0 8px 0">Available Exams</h3>';
+  list.forEach(entry => {
+    const id = entry.id || (entry.file && entry.file.replace(/[^\w\-\.]/g,'_')) || 'quiz';
+    const title = entry.title || id;
+    const node = document.createElement('div');
+    node.className = 'quiz-entry';
+    node.style = 'padding:8px 6px;border-bottom:1px solid rgba(255,255,255,0.03);cursor:pointer';
+    node.innerHTML = `<div style="font-weight:700;color:#e6eef3">${title}</div><div style="color:#9aa6b2;font-size:12px">${entry.id || ''}</div>`;
+    node.addEventListener('click', () => {
+      if (entry.file) {
+        loadQuizFileEntry(entry);
+      } else {
+        console.warn('Catalog entry has no file:', entry);
+      }
+    });
+    container.appendChild(node);
+  });
+  if (list.length > 0) {
+    const params = new URLSearchParams(window.location.search);
+    if (!params.get('quiz')) {
+      const first = list[0];
+      if (first && first.file) loadQuizFileEntry(first);
+    }
+  }
+}
+
+async function loadQuizFileEntry(entryOrUrl) {
+  const entry = (typeof entryOrUrl === 'string') ? { file: entryOrUrl } : entryOrUrl;
+  let url = entry.file || '';
+  if (!url.startsWith('http')) {
+    url = '/' + url.replace(/^\/+/, '');
+  }
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Quiz file not found: ' + res.status);
+    const quiz = await res.json();
+    if (document.getElementById('pageTitle')) {
+      document.getElementById('pageTitle').textContent = quiz.title || entry.title || 'Quiz';
+    }
+    window.questions = quiz.questions || [];
+    renderQuestions();
+  } catch (err) {
+    console.error('Failed to load quiz:', err);
+    const qContainer = document.getElementById('questions');
+    if (qContainer) qContainer.innerHTML = `<p style="color:#f88">Failed to load quiz${entry && entry.id ? ' ' + entry.id : ''}.</p>`;
+  }
+}
+
+/* --- fallback renderer (only if site lacks one) --- */
+if (typeof renderQuestions === 'undefined') {
+  function letterFor(i){ return String.fromCharCode(65 + i); }
+
+  function renderQuestions(){
+    const qContainer = document.getElementById('questions');
+    qContainer.innerHTML = '';
+    window.answered = 0;
+    window.correctCount = 0;
+    const qs = window.questions || [];
+    qs.forEach((item, idx) => {
+      const qDiv = document.createElement('div');
+      qDiv.className = 'question';
+      qDiv.id = 'q' + idx;
+      const imgHtml = item.image ? `<div style="margin:10px 0;text-align:center"><img src="${item.image}" alt="fig ${idx+1}" style="max-width:100%;height:auto;border-radius:6px;border:1px solid rgba(255,255,255,0.05)"></div>` : '';
+      qDiv.innerHTML = `
+        <div class="qhead">
+          <div class="qnum">${idx+1}</div>
+          <div class="qtext">
+            <div style="font-weight:700">${item.q}</div>
+            ${imgHtml}
+            <div class="opts" id="opts${idx}"></div>
+          </div>
+        </div>
+        <div class="rationale" id="rat${idx}"></div>
+      `;
+      qContainer.appendChild(qDiv);
+      const optsDiv = qDiv.querySelector(`#opts${idx}`);
+      (item.options || []).forEach((opt, oi) => {
+        const b = document.createElement('div');
+        b.className = 'opt';
+        b.setAttribute('data-qi', idx);
+        b.setAttribute('data-oi', oi);
+        b.tabIndex = 0;
+        b.innerHTML = `<strong>${letterFor(oi)}.</strong> ${opt}`;
+        b.addEventListener('click', handleClick);
+        optsDiv.appendChild(b);
+      });
+    });
+    document.getElementById('progress').textContent = `Answered: 0 / ${window.questions.length}`;
+    document.getElementById('score').textContent = `Score: 0`;
+  }
+
+  function handleClick(e){
+    const el = e.currentTarget;
+    const qi = parseInt(el.getAttribute('data-qi'));
+    const oi = parseInt(el.getAttribute('data-oi'));
+    const item = window.questions[qi];
+    const qdiv = document.getElementById('q' + qi);
+    if (qdiv.getAttribute('data-answered') === 'true') return;
+    qdiv.setAttribute('data-answered','true');
+    window.answered++;
+    const opts = qdiv.querySelectorAll('.opt');
+
+    if (oi === item.correct) {
+      el.classList.add('correct');
+      window.correctCount++;
+    } else {
+      el.classList.add('incorrect');
+      opts.forEach(node => {
+        if (parseInt(node.getAttribute('data-oi')) === item.correct) {
+continue...
 </script>
 </body>
 </html>
+
 
