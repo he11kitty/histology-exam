@@ -796,9 +796,100 @@ document.addEventListener('DOMContentLoaded', function () {
   renderQuizCatalogFromGitHub();
 });
 /* ---------------------------------------------------------------- */
+/* ---------- Quiz catalog: auto-list quizzes from quizzes/ folder ---------- */
+const GITHUB_OWNER = 'he11kitty';
+const GITHUB_REPO  = 'histology-exam';
+const QUIZ_DIR     = 'quizzes';
+
+async function loadQuizListFromGitHub() {
+  try {
+    const api = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${QUIZ_DIR}?ref=main`;
+    const res = await fetch(api, { headers: { Accept: 'application/vnd.github.v3+json' }});
+    if (!res.ok) return [];
+    const files = await res.json();
+    return files
+      .filter(f => f.type === 'file' && f.name.toLowerCase().endsWith('.json'))
+      .map(f => ({ name: f.name, download_url: f.download_url, sha: f.sha }));
+  } catch (err) {
+    console.error('Failed to fetch quiz list:', err);
+    return [];
+  }
+}
+
+function createCatalogContainer() {
+  let container = document.getElementById('quiz-catalog');
+  if (container) return container;
+  container = document.createElement('aside');
+  container.id = 'quiz-catalog';
+  container.style = 'width:280px;float:left;margin-right:18px;padding:12px;border-radius:8px;background:rgba(255,255,255,0.02);';
+  container.innerHTML = '<h3 style="color:#6ee7b7;margin:0 0 8px 0">Available Exams</h3>';
+  const mainCard = document.querySelector('.exam-card');
+  if (mainCard && mainCard.parentNode) {
+    mainCard.parentNode.insertBefore(container, mainCard);
+    mainCard.style = 'overflow:hidden';
+  } else {
+    document.body.insertBefore(container, document.body.firstChild);
+  }
+  return container;
+}
+
+async function renderQuizCatalogFromGitHub() {
+  const files = await loadQuizListFromGitHub();
+  const container = createCatalogContainer();
+  container.querySelectorAll('.quiz-entry').forEach(n => n.remove()); // clear old
+  if (files.length === 0) {
+    const p = document.createElement('div');
+    p.style = 'color:#9aa6b2;font-size:14px';
+    p.textContent = 'No exams found in quizzes/ (yet).';
+    container.appendChild(p);
+    return;
+  }
+  files.forEach(f => {
+    const id = f.name.replace(/\.json$/,'');
+    const entry = document.createElement('div');
+    entry.className = 'quiz-entry';
+    entry.style = 'padding:8px 6px;border-bottom:1px solid rgba(255,255,255,0.03);cursor:pointer';
+    entry.innerHTML = `<div style="font-weight:700;color:#e6eef3">${id}</div>
+                       <div style="color:#9aa6b2;font-size:12px">SHA: ${f.sha.slice(0,7)}</div>`;
+    entry.addEventListener('click', async () => {
+      await loadQuizFromUrl(f.download_url, id);
+    });
+    container.appendChild(entry);
+  });
+  if (files.length > 0) await loadQuizFromUrl(files[0].download_url, files[0].name.replace(/\.json$/,''));
+}
+
+async function loadQuizFromUrl(downloadUrl, id) {
+  try {
+    const res = await fetch(downloadUrl);
+    if (!res.ok) throw new Error('Quiz file not found');
+    const quiz = await res.json();
+    if (quiz.title && document.querySelector('header h1')) {
+      document.querySelector('header h1').textContent = quiz.title;
+    }
+    window.questions = quiz.questions || [];
+    if (typeof render === 'function') {
+      render();
+    } else if (typeof renderQuestionsSimple === 'function') {
+      renderQuestionsSimple(window.questions);
+    } else {
+      console.warn('No render function found — quiz loaded into window.questions.');
+    }
+  } catch (err) {
+    console.error('Failed to load quiz:', err);
+    const qContainer = document.getElementById('questions');
+    if (qContainer) qContainer.innerHTML = `<p style="color:#f88">Failed to load quiz ${id}.</p>`;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  renderQuizCatalogFromGitHub();
+});
+/* ---------------------------------------------------------------- */
 </script>
 </body>
 </html>
+
 
 
 
