@@ -2,7 +2,13 @@
   {
     "id": "histology",
     "title": "Histology — Full Exam (200 items)",
-    "file": "https://raw.githubusercontent.com/he11kitty/Semestrals-1/refs/heads/main/quizzes/histology.json",
+    "file": "quizzes/histology.json",
+    "last_updated": "2025-12-07T12:00:00Z"
+  },
+  {
+    "id": "upper_limbs",
+    "title": "Upper Limbs — 200-Item Exam",
+    "file": "quizzes/upper_limbs.json",
     "last_updated": "2025-12-07T12:00:00Z"
   }
 ]
