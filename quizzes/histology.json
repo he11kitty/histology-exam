@@ -4,16 +4,15 @@
   "questions": [
     {
       "q": "The resolving power of a light microscope (LM) is approximately:",
-      "options": ["0.2 nm","0.2 μm","2 μm","200 μm"],
+      "options": ["0.2 nm", "0.2 μm", "2 μm", "200 μm"],
       "correct": 1,
       "rationale": "LM resolving power ≈ 0.2 μm (200 nm). TEM has higher resolution."
     },
     {
       "q": "Which organelle contains a strand of DNA outside the nucleus?",
-      "options": ["Lysosome","Peroxisome","Mitochondrion","Ribosome"],
+      "options": ["Lysosome", "Peroxisome", "Mitochondrion", "Ribosome"],
       "correct": 2,
       "rationale": "Mitochondria contain mitochondrial DNA (mtDNA)."
     }
-    /* Add more questions here or paste your full 200 questions */
   ]
 }
