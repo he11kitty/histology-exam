@@ -406,6 +406,33 @@ const quizzes = {
 
   document.addEventListener('DOMContentLoaded', initFromQuery);
 })();
+async function loadQuizFileEntry(entry) {
+  // entry.file may be a relative path (quizzes/quiz1.json) or an absolute raw URL
+  const url = (entry.file || '').startsWith('http') ? entry.file : `/quizzes/${entry.file}`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Quiz file not found: ' + res.status);
+    const quiz = await res.json();
+    document.getElementById('pageTitle').textContent = entry.title || quiz.title || entry.id;
+    window.questions = quiz.questions || [];
+    if (typeof render === 'function') {
+      render();
+    } else if (typeof renderQuestionsSimple === 'function') {
+      renderQuestionsSimple(window.questions);
+    } else {
+      // fallback: reinitialize catalog -> load questions directly
+      if (window.questions && window.questions.length) {
+        // call existing renderer that your page uses
+        renderQuestions(); // only if you have it
+      }
+    }
+  } catch (err) {
+    console.error('Failed to load quiz:', err);
+    const qContainer = document.getElementById('questions');
+    if (qContainer) qContainer.innerHTML = `<p style="color:#f88">Failed to load quiz ${entry.id}.</p>`;
+  }
+}
 </script>
 </body>
 </html>
+
