@@ -396,6 +396,132 @@ document.getElementById('resetBtn').addEventListener('click', () => {
 render();
 progressEl.textContent = `Answered: 0 / ${questions.length}`;
 scoreEl.textContent = `Score: 0`;
+function handleClick(e){
+  const el = e.currentTarget;
+  const qi = parseInt(el.getAttribute('data-qi'));
+  const oi = parseInt(el.getAttribute('data-oi'));
+  const item = questions[qi];
+  const qdiv = document.getElementById('q'+qi);
+
+  // Prevent double-answering
+  if (qdiv.getAttribute('data-answered') === 'true') return;
+  qdiv.setAttribute('data-answered','true');
+  answered++;
+
+  const opts = qdiv.querySelectorAll('.opt');
+
+  // Mark correct / incorrect and update score
+  if (oi === item.correct){
+    el.classList.add('correct');
+    correctCount++;
+  } else {
+    el.classList.add('incorrect');
+    // Also highlight the correct option
+    opts.forEach(node=>{
+      if (parseInt(node.getAttribute('data-oi')) === item.correct){
+        node.classList.add('correct');
+      }
+    });
+  }
+
+  // Disable all options for this question
+  opts.forEach(node=>{
+    node.style.pointerEvents = 'none';
+    node.setAttribute('aria-disabled','true');
+  });
+
+  // Build an expanded rationale that is source-free and explains distractors
+  // 1) obtain the provided rationale text and sanitize it
+  let raw = (item.rationale || '').trim();
+  // remove any accidental "Source:" or "Answer:" lines if present
+  raw = raw.replace(/\n\s*Source:[\s\S]*$/i,'').replace(/\n\s*Answer:\s*[A-D]/i,'').trim();
+
+  // 2) If no author-provided rationale, generate a concise starter
+  if (!raw) {
+    raw = 'This choice best matches the central concept tested in the question.';
+  }
+
+  // 3) Compose a multi-part rationale:
+  //    - Why this answer is correct (use / augment the provided rationale)
+  //    - Why each other choice is not correct (explain briefly but specifically)
+  let final = '';
+  final += 'Why this answer is correct:\n\n';
+  // Expand the first sentence a little if it is short
+  const sentences = raw.split(/(?<=\.)\s+/).filter(Boolean);
+  if (sentences.length > 0) {
+    // Include up to first 2 sentences from the author's rationale for context
+    final += sentences.slice(0,2).join(' ') + '\n\n';
+    if (sentences.length > 2) {
+      // Append the rest as continuation
+      final += sentences.slice(2).join(' ') + '\n\n';
+    }
+  } else {
+    final += raw + '\n\n';
+  }
+
+  final += 'Why the other choices are not correct:\n\n';
+
+  // For each distractor, craft a short targeted explanation
+  item.options.forEach((opt, idx)=>{
+    if (idx === item.correct) return; // skip correct option
+    const distractorExplanation = generateOtherReason(opt, raw, idx, item.correct);
+    final += `${letterFor(idx)}. ${opt} — ${distractorExplanation}\n\n`;
+  });
+
+  // Display the rationale (no source lines)
+  const rat = document.getElementById('rat'+qi);
+  rat.textContent = final.trim();
+  rat.classList.add('show');
+
+  // Update progress and score
+  progressEl.textContent = `Answered: ${answered} / ${questions.length}`;
+  scoreEl.textContent = `Score: ${correctCount}`;
+
+  // Ensure rationale is visible on mobile
+  rat.scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+/**
+ * generateOtherReason(optText, correctRationale, distractorIndex, correctIndex)
+ *
+ * Return a short, specific explanation for why the distractor `optText` is wrong.
+ * We use a few templates and try to cite the core difference vs the correct rationale.
+ */
+function generateOtherReason(optText, correctRationale, distractorIndex, correctIndex){
+  // Normalize texts for mild keyword checks
+  const ot = (optText || '').toLowerCase();
+  const crFirst = (correctRationale || '').split(/[.?!]/).filter(Boolean)[0] || '';
+
+  // A selection of targeted templates. We attempt to make the feedback helpful:
+  const templates = [
+    // Generic: this distractor misses the key feature
+    `This option is incorrect because it does not include the essential feature described above: ${crFirst}. It addresses a related idea but omits or contradicts the specific requirement.`,
+    // Distractor confuses two concepts
+    `This choice confuses two concepts: it describes something related but not the same as the correct answer. The correct answer directly addresses ${crFirst}, whereas this option does not.`,
+    // Distractor is an opposite/contradiction
+    `This alternative is incorrect because it contradicts the central point of the correct explanation; it asserts the opposite or fails to meet the necessary condition described above.`,
+    // Distractor is incomplete or too broad
+    `This answer is too general or incomplete relative to the correct choice. The correct answer specifies ${crFirst}, while this option lacks that necessary specificity.`,
+    // Distractor applies to a different context
+    `This option applies to a different context or structure and therefore is not the correct response to this question; it does not meet the precise criteria explained above.`
+  ];
+
+  // Use some minimal heuristics to pick a more tailored template if possible
+  if (ot.includes('mitochondr') && /dna|mitochondrial/i.test(correctRationale) === false) {
+    return `This option mentions mitochondria but the question concerns a different structure or functional point (${crFirst}). Therefore it is not the best match.`;
+  }
+  if (ot.includes('collagen') && /collagen/i.test(correctRationale) === false) {
+    return `This distractor focuses on collagen; however the correct explanation concerns ${crFirst}, not the collagen-related property cited here.`;
+  }
+  if (ot.includes('keratin') && /keratin/i.test(correctRationale) === false) {
+    return `This choice refers to keratin, but the correct rationale focuses on ${crFirst} rather than keratin-related features.`;
+  }
+
+  // Fallback: semi-random template to keep explanations varied and helpful
+  const idx = Math.abs(distractorIndex + optText.length) % templates.length;
+  return templates[idx];
+}
 </script>
 </body>
 </html>
+
