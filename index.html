@@ -521,7 +521,101 @@ function generateOtherReason(optText, correctRationale, distractorIndex, correct
   const idx = Math.abs(distractorIndex + optText.length) % templates.length;
   return templates[idx];
 }
+/* ---------- Paste START (handleClick + helper) ---------- */
+
+function handleClick(e){
+  const el = e.currentTarget;
+  const qi = parseInt(el.getAttribute('data-qi'));
+  const oi = parseInt(el.getAttribute('data-oi'));
+  const item = questions[qi];
+  const qdiv = document.getElementById('q'+qi);
+
+  if (qdiv.getAttribute('data-answered') === 'true') return;
+  qdiv.setAttribute('data-answered','true');
+  answered++;
+
+  const opts = qdiv.querySelectorAll('.opt');
+
+  if (oi === item.correct){
+    el.classList.add('correct');
+    correctCount++;
+  } else {
+    el.classList.add('incorrect');
+    opts.forEach(node=>{
+      if (parseInt(node.getAttribute('data-oi')) === item.correct){
+        node.classList.add('correct');
+      }
+    });
+  }
+
+  opts.forEach(node=>{
+    node.style.pointerEvents = 'none';
+    node.setAttribute('aria-disabled','true');
+  });
+
+  // sanitize original rationale (remove Source/Answer lines)
+  let raw = (item.rationale || '').trim();
+  raw = raw.replace(/\n\s*Source:[\s\S]*$/i,'').replace(/\n\s*Answer:\s*[A-D]/i,'').trim();
+
+  if (!raw) raw = 'This choice best matches the central concept tested in the question.';
+
+  let final = 'Why this answer is correct:\n\n';
+  const sentences = raw.split(/(?<=\.)\s+/).filter(Boolean);
+  if (sentences.length > 0) {
+    final += sentences.slice(0,2).join(' ') + '\n\n';
+    if (sentences.length > 2) final += sentences.slice(2).join(' ') + '\n\n';
+  } else {
+    final += raw + '\n\n';
+  }
+
+  final += 'Why the other choices are not correct:\n\n';
+
+  item.options.forEach((opt, idx)=>{
+    if (idx === item.correct) return;
+    const distractorExplanation = generateOtherReason(opt, raw, idx, item.correct);
+    final += `${letterFor(idx)}. ${opt} — ${distractorExplanation}\n\n`;
+  });
+
+  const rat = document.getElementById('rat'+qi);
+  rat.textContent = final.trim();
+  rat.classList.add('show');
+
+  progressEl.textContent = `Answered: ${answered} / ${questions.length}`;
+  scoreEl.textContent = `Score: ${correctCount}`;
+
+  rat.scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+/* helper */
+function generateOtherReason(optText, correctRationale, distractorIndex, correctIndex){
+  const ot = (optText || '').toLowerCase();
+  const crFirst = (correctRationale || '').split(/[.?!]/).filter(Boolean)[0] || '';
+
+  const templates = [
+    `This option is incorrect because it does not include the essential feature described above: ${crFirst}. It addresses a related idea but omits or contradicts the specific requirement.`,
+    `This choice confuses two concepts: it describes something related but not the same as the correct answer. The correct answer directly addresses ${crFirst}, whereas this option does not.`,
+    `This alternative is incorrect because it contradicts the central point of the correct explanation; it asserts the opposite or fails to meet the necessary condition.`,
+    `This answer is too general or incomplete relative to the correct choice. The correct answer specifies ${crFirst}, while this option lacks that necessary specificity.`,
+    `This option applies to a different context or structure and therefore is not the correct response to this question; it does not meet the precise criteria explained above.`
+  ];
+
+  if (ot.includes('mitochondr') && /dna|mitochondrial/i.test(correctRationale) === false) {
+    return `This option mentions mitochondria but the question concerns a different structure or functional point (${crFirst}). Therefore it is not the best match.`;
+  }
+  if (ot.includes('collagen') && /collagen/i.test(correctRationale) === false) {
+    return `This distractor focuses on collagen; however the correct explanation concerns ${crFirst}, not the collagen-related property cited here.`;
+  }
+  if (ot.includes('keratin') && /keratin/i.test(correctRationale) === false) {
+    return `This choice refers to keratin, but the correct rationale focuses on ${crFirst} rather than keratin-related features.`;
+  }
+
+  const idx = Math.abs(distractorIndex + optText.length) % templates.length;
+  return templates[idx];
+}
+
+/* ---------- Paste END ---------- */
 </script>
 </body>
 </html>
+
 
